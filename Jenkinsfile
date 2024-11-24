@@ -1,9 +1,5 @@
 pipeline {
     agent any
-    environment {
-        // Set the Docker Host URI (using SSH for remote Docker instance)
-        DOCKER_HOST = 'ssh://ubuntu@3.88.177.235' // Change to your Docker server IP and user
-    }
     stages {
         stage('Cleanup') {
             steps {
@@ -35,7 +31,7 @@ pipeline {
         stage('Test Website') {
             steps {
                 // Tests if the website is accessible
-                sh 'curl -I http://3.88.177.235:8081'
+                sh 'curl -I http://18.208.155.27:8081'
             }
         }
 
