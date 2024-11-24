@@ -1,5 +1,10 @@
 pipeline {
     agent any
+    environment {
+        DOCKER_HOST = 'tcp://18.208.155.27:2375'
+        IMAGE_NAME = 'static-website-nginx'
+        PORT = '8081'
+    }
     stages {
         stage('Cleanup') {
             steps {
@@ -15,23 +20,28 @@ pipeline {
 
         stage('Build Image') {
             steps {
-                // Builds the Docker image on the attached Docker server
-                sh 'docker -H tcp://18.208.155.27:2375 build -t static-website-nginx:develop-${BUILD_ID} .'
+                // Retry on failure, build the Docker image on the attached Docker server
+                retry(3) {
+                    sh "docker -H ${DOCKER_HOST} build -t ${IMAGE_NAME}:develop-${BUILD_ID} ."
+                }
             }
         }
 
         stage('Run Container') {
             steps {
-                // Stops and removes the existing container, then runs a new one on the attached Docker server
-                sh 'docker -H tcp://18.208.155.27:2375 stop develop-container || true && docker -H tcp://18.208.155.27:2375 rm develop-container || true'
-                sh 'docker -H tcp://18.208.155.27:2375 run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}'
+                // Gracefully stop and remove any existing container, then run a new one on the attached Docker server
+                sh '''
+                    docker -H ${DOCKER_HOST} stop develop-container || echo "No container to stop"
+                    docker -H ${DOCKER_HOST} rm develop-container || echo "No container to remove"
+                '''
+                sh "docker -H ${DOCKER_HOST} run --name develop-container -d -p ${PORT}:80 ${IMAGE_NAME}:develop-${BUILD_ID}"
             }
         }
 
         stage('Test Website') {
             steps {
                 // Tests if the website is accessible
-                sh 'curl -I http://18.208.155.27:8081'
+                sh "curl -I http://18.208.155.27:${PORT}"
             }
         }
 
@@ -39,13 +49,22 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                     sh '''
-                        docker -H tcp://18.208.155.27:2375 login -u $USERNAME -p $PASSWORD
-                        docker -H tcp://18.208.155.27:2375 tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest
-                        docker -H tcp://18.208.155.27:2375 tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}
-                        docker -H tcp://18.208.155.27:2375 push $USERNAME/static-website-nginx:latest
-                        docker -H tcp://18.208.155.27:2375 push $USERNAME/static-website-nginx:develop-${BUILD_ID}
+                        docker -H ${DOCKER_HOST} login -u $USERNAME -p $PASSWORD
+                        docker -H ${DOCKER_HOST} tag ${IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${IMAGE_NAME}:latest
+                        docker -H ${DOCKER_HOST} tag ${IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${IMAGE_NAME}:develop-${BUILD_ID}
                     '''
                 }
+            }
+        }
+    }
+    post {
+        success {
+            // Push the image to Docker Hub only on success
+            withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                sh '''
+                    docker -H ${DOCKER_HOST} push $USERNAME/${IMAGE_NAME}:latest
+                    docker -H ${DOCKER_HOST} push $USERNAME/${IMAGE_NAME}:develop-${BUILD_ID}
+                '''
             }
         }
     }
