@@ -15,16 +15,16 @@ pipeline {
 
         stage('Build Image') {
             steps {
-                // Builds the Docker image
-                sh 'docker build -t static-website-nginx:develop-${BUILD_ID} .'
+                // Builds the Docker image on the attached Docker server
+                sh 'docker -H tcp://18.208.155.27:2375 build -t static-website-nginx:develop-${BUILD_ID} .'
             }
         }
 
         stage('Run Container') {
             steps {
-                // Stops and removes the existing container, then runs a new one
-                sh 'docker stop develop-container || true && docker rm develop-container || true'
-                sh 'docker run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}'
+                // Stops and removes the existing container, then runs a new one on the attached Docker server
+                sh 'docker -H tcp://18.208.155.27:2375 stop develop-container || true && docker -H tcp://18.208.155.27:2375 rm develop-container || true'
+                sh 'docker -H tcp://18.208.155.27:2375 run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}'
             }
         }
 
@@ -39,11 +39,11 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                     sh '''
-                        docker login -u $USERNAME -p $PASSWORD
-                        docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest
-                        docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}
-                        docker push $USERNAME/static-website-nginx:latest
-                        docker push $USERNAME/static-website-nginx:develop-${BUILD_ID}
+                        docker -H tcp://18.208.155.27:2375 login -u $USERNAME -p $PASSWORD
+                        docker -H tcp://18.208.155.27:2375 tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest
+                        docker -H tcp://18.208.155.27:2375 tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}
+                        docker -H tcp://18.208.155.27:2375 push $USERNAME/static-website-nginx:latest
+                        docker -H tcp://18.208.155.27:2375 push $USERNAME/static-website-nginx:develop-${BUILD_ID}
                     '''
                 }
             }
