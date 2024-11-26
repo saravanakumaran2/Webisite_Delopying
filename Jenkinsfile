@@ -52,20 +52,33 @@ pipeline {
                         docker -H ${DOCKER_HOST} login -u $USERNAME -p $PASSWORD
                         docker -H ${DOCKER_HOST} tag ${IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${IMAGE_NAME}:latest
                         docker -H ${DOCKER_HOST} tag ${IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${IMAGE_NAME}:develop-${BUILD_ID}
+                        docker -H ${DOCKER_HOST} push $USERNAME/${IMAGE_NAME}:latest
+                        docker -H ${DOCKER_HOST} push $USERNAME/${IMAGE_NAME}:develop-${BUILD_ID}
                     '''
+                }
+            }
+        }
+
+        stage('Deploy to App Server') {
+            steps {
+                sshagent(['ssh-key']) {
+                    withCredentials([usernamePassword(credentialsId: 'docker', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                        sh '''
+                            ssh -tt docker@<APP_HOST_VM_IP> -o StrictHostKeyChecking=no "docker pull $USERNAME/${IMAGE_NAME}:latest"
+                            ssh -tt docker@<APP_HOST_VM_IP> -o StrictHostKeyChecking=no "docker stop develop-container || true && docker rm develop-container || true"
+                            ssh -tt docker@<APP_HOST_VM_IP> -o StrictHostKeyChecking=no "docker run --name develop-container -d -p 9000:80 $USERNAME/${IMAGE_NAME}:latest"
+                        '''
+                    }
                 }
             }
         }
     }
     post {
         success {
-            // Push the image to Docker Hub only on success
-            withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                sh '''
-                    docker -H ${DOCKER_HOST} push $USERNAME/${IMAGE_NAME}:latest
-                    docker -H ${DOCKER_HOST} push $USERNAME/${IMAGE_NAME}:develop-${BUILD_ID}
-                '''
-            }
+            echo 'Pipeline executed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
 }
