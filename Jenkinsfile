@@ -19,6 +19,17 @@ pipeline {
             }
         }
 
+        stage('Test SSH Access') {
+            steps {
+                echo 'Testing SSH access to the remote server...'
+                sshagent(['docker']) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no docker@3.89.21.153 echo "SSH connection successful."
+                    '''
+                }
+            }
+        }
+
         stage('Cleanup') {
             steps {
                 echo 'Cleaning workspace...'
@@ -39,7 +50,8 @@ pipeline {
                 sshagent(['docker']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no docker@3.89.21.153 \
-                        "docker build -t ${IMAGE_NAME}:develop-${BUILD_ID} ."
+                        "cd /var/lib/jenkins/workspace/${JOB_NAME} && \
+                         docker build -t ${IMAGE_NAME}:develop-${BUILD_ID} ."
                     '''
                 }
             }
