@@ -10,7 +10,7 @@ pipeline {
                 echo 'Checking Docker availability on the remote server...'
                 sshagent(['docker']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no docker@3.89.21.153 \
+                        ssh -o StrictHostKeyChecking=no docker@3.82.13.195 \
                         "if ! command -v docker &> /dev/null; then \
                             echo 'Error: Docker is not installed or accessible.'; exit 1; \
                         fi"
@@ -24,7 +24,7 @@ pipeline {
                 echo 'Testing SSH access to the remote server...'
                 sshagent(['docker']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no docker@3.89.21.153 echo "SSH connection successful."
+                        ssh -o StrictHostKeyChecking=no docker@3.82.13.195 echo "SSH connection successful."
                     '''
                 }
             }
@@ -49,7 +49,7 @@ pipeline {
                 echo 'Building Docker image on the remote server...'
                 sshagent(['docker']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no docker@3.89.21.153 \
+                        ssh -o StrictHostKeyChecking=no docker@3.82.13.195 \
                         "cd /var/lib/jenkins/workspace/${JOB_NAME} && \
                          docker build -t ${IMAGE_NAME}:develop-${BUILD_ID} ."
                     '''
@@ -62,7 +62,7 @@ pipeline {
                 echo 'Stopping and removing any existing container, then starting a new one...'
                 sshagent(['docker']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no docker@3.89.21.153 \
+                        ssh -o StrictHostKeyChecking=no docker@3.82.13.195 \
                         "docker stop develop-container || echo 'No container to stop'; \
                          docker rm develop-container || echo 'No container to remove'; \
                          docker run --name develop-container -d -p ${PORT}:80 ${IMAGE_NAME}:develop-${BUILD_ID}"
@@ -75,7 +75,7 @@ pipeline {
             steps {
                 echo 'Testing website accessibility...'
                 sh '''
-                    if ! curl -I http://3.89.21.153:${PORT}; then
+                    if ! curl -I http://3.82.13.195:${PORT}; then
                         echo 'Website is not accessible';
                         exit 1;
                     fi
@@ -86,10 +86,10 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 echo 'Pushing Docker image to DockerHub...'
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                withCredentials([usernamePassword(credentialsId: 'docker-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                     sshagent(['docker']) {
                         sh '''
-                            ssh -o StrictHostKeyChecking=no docker@3.89.21.153 \
+                            ssh -o StrictHostKeyChecking=no docker@3.82.13.195 \
                             "docker login -u $USERNAME -p $PASSWORD; \
                              docker tag ${IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${IMAGE_NAME}:latest; \
                              docker tag ${IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${IMAGE_NAME}:develop-${BUILD_ID}; \
@@ -106,7 +106,7 @@ pipeline {
                 echo 'Deploying the application to the app server...'
                 sshagent(['docker']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no docker@<APP_HOST_VM_IP> \
+                        ssh -o StrictHostKeyChecking=no docker@3.82.13.195 \
                         "docker pull $USERNAME/${IMAGE_NAME}:latest; \
                          docker stop develop-container || true; \
                          docker rm develop-container || true; \
