@@ -8,7 +8,7 @@ pipeline {
         stage('Pre-check: Docker Availability') {
             steps {
                 echo 'Checking Docker availability on the remote server...'
-                sshagent(['docker']) {
+                sshagent(credentials: ['docker']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no docker@3.91.77.136 \
                         "if ! command -v docker &> /dev/null; then \
@@ -22,7 +22,7 @@ pipeline {
         stage('Test SSH Access') {
             steps {
                 echo 'Testing SSH access to the remote server...'
-                sshagent(['docker']) {
+                sshagent(credentials: ['docker']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no docker@3.91.77.136 echo "SSH connection successful."
                     '''
@@ -47,7 +47,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo 'Building Docker image on the remote server...'
-                sshagent(['docker']) {
+                sshagent(credentials: ['docker']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no docker@3.91.77.136 \
                         "cd /var/lib/jenkins/workspace/${JOB_NAME} && \
@@ -60,7 +60,7 @@ pipeline {
         stage('Run Docker Container') {
             steps {
                 echo 'Stopping and removing any existing container, then starting a new one...'
-                sshagent(['docker']) {
+                sshagent(credentials: ['docker']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no docker@3.91.77.136 \
                         "docker stop develop-container || echo 'No container to stop'; \
@@ -104,7 +104,7 @@ pipeline {
         stage('Deploy to Application Server') {
             steps {
                 echo 'Deploying the application to the app server...'
-                sshagent(['docker']) {
+                sshagent(credentials: ['docker']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no docker@3.91.77.136 \
                         "docker pull $USERNAME/${IMAGE_NAME}:latest; \
