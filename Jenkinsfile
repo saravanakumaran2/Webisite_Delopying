@@ -104,7 +104,7 @@ pipeline {
             steps {
                 echo 'Pushing Docker image to DockerHub...'
                 sshagent(credentials: ['root']) {
-                    withCredentials([string(credentialsId: 'docker-hub-password', variable: 'PASSWORD')]) {
+                    withCredentials([string(credentialsId: 'docker-auth', variable: 'PASSWORD')]) {
                         sh '''
                             ssh -o StrictHostKeyChecking=no $SSH_USER@54.221.41.125 \
                             "docker login -u $USERNAME -p $PASSWORD && \
