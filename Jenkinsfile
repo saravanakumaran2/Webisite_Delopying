@@ -38,13 +38,24 @@ pipeline {
             }
         }
 
+        stage('Sync Code to Remote Server') {
+            steps {
+                echo 'Syncing code to the remote server...'
+                sshagent(credentials: ['docker']) {
+                    sh '''
+                        scp -o StrictHostKeyChecking=no -r $WORKSPACE/* $SSH_USER@54.221.41.125:/tmp/website_deployment/
+                    '''
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 echo 'Building Docker image on the remote server...'
                 sshagent(credentials: ['docker']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no $SSH_USER@54.221.41.125 \
-                        "cd $WORKSPACE && \
+                        "cd /tmp/website_deployment && \
                          docker build -t ${IMAGE_NAME}:develop-${BUILD_ID} ."
                     '''
                 }
