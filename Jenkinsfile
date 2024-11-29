@@ -8,9 +8,21 @@ pipeline {
         PORT = '8081' // Port on which the app will be deployed
     }
     stages {
-        stage('Declarative: Checkout SCM') {
+        stage('Cleanup') {
             steps {
-                checkout scm
+                cleanWs() // Clean workspace
+            }
+        }
+
+        stage('Clone Git Repo') {
+            steps {
+                checkout scm // Checkout source code
+            }
+        }
+
+        stage('Listing Files') {
+            steps {
+                sh 'ls -l' // List files in the workspace
             }
         }
 
@@ -41,46 +53,32 @@ pipeline {
             }
         }
 
-        stage('Checkout Code') {
-            steps {
-                echo 'Checking out the code...'
-                checkout scm
-            }
-        }
-
-        stage('Sync Code to Remote Server') {
-            steps {
-                echo 'Syncing code to the remote server...'
-                sshagent(credentials: ['root']) {
-                    sh '''
-                        scp -o StrictHostKeyChecking=no -r $WORKSPACE/* $SSH_USER@54.221.41.125:/tmp/website_deployment/
-                    '''
-                }
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
-                echo 'Building Docker image on the remote server...'
-                sshagent(credentials: ['root']) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no $SSH_USER@54.221.41.125 \
-                        "cd /tmp/website_deployment && \
-                         docker build -t $USERNAME/$IMAGE_NAME:develop-8 ."
-                    '''
+                echo 'Building Docker image...'
+                dir('app') {
+                    withCredentials([usernamePassword(credentialsId: 'docker-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                        sh '''
+                            docker build -t $USERNAME/$IMAGE_NAME:develop-8 .
+                            docker login -u $USERNAME -p $PASSWORD
+                            docker push $USERNAME/$IMAGE_NAME:develop-8
+                        '''
+                    }
                 }
             }
         }
 
-        stage('Run Docker Container') {
+        stage('Deploy Docker Container') {
             steps {
-                echo 'Stopping and removing any existing container, then starting a new one...'
+                echo 'Deploying Docker container...'
                 sshagent(credentials: ['root']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no $SSH_USER@54.221.41.125 \
-                        "docker stop develop-container || echo 'No container to stop'; \
-                         docker rm develop-container || echo 'No container to remove'; \
-                         docker run --name develop-container -d -p $PORT:80 $USERNAME/$IMAGE_NAME:develop-8"
+                        "docker stop develop-container || true && docker rm develop-container || true"
+                    '''
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no $SSH_USER@54.221.41.125 \
+                        "docker run --name develop-container -d -p $PORT:80 $USERNAME/$IMAGE_NAME:develop-8"
                     '''
                 }
             }
@@ -104,13 +102,12 @@ pipeline {
             steps {
                 echo 'Pushing Docker image to DockerHub...'
                 sshagent(credentials: ['root']) {
-                    withCredentials([string(credentialsId: 'docker-auth', variable: 'PASSWORD')]) {
+                    withCredentials([usernamePassword(credentialsId: 'docker-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                         sh '''
-                            ssh -o StrictHostKeyChecking=no $SSH_USER@54.221.41.125 \
-                            "docker login -u $USERNAME -p $PASSWORD && \
-                             docker tag $USERNAME/$IMAGE_NAME:develop-8 docker.io/$USERNAME/$IMAGE_NAME:latest && \
-                             docker push docker.io/$USERNAME/$IMAGE_NAME:latest && \
-                             docker push docker.io/$USERNAME/$IMAGE_NAME:develop-8"
+                            docker login -u $USERNAME -p $PASSWORD
+                            docker tag $USERNAME/$IMAGE_NAME:develop-8 docker.io/$USERNAME/$IMAGE_NAME:latest
+                            docker push docker.io/$USERNAME/$IMAGE_NAME:latest
+                            docker push docker.io/$USERNAME/$IMAGE_NAME:develop-8
                         '''
                     }
                 }
@@ -132,13 +129,8 @@ pipeline {
             }
         }
 
-        stage('Declarative: Post Actions') {
-            steps {
-                echo 'Cleaning up temporary resources...'
-                cleanWs()
-            }
-        }
     }
+
     post {
         failure {
             echo 'Pipeline failed!'
