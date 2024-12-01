@@ -20,13 +20,14 @@ pipeline {
             steps {
                 // Builds the Docker image
                 withCredentials([sshUserPrivateKey(credentialsId: 'docker-server', keyFileVariable: 'SSH_PRIVATE_KEY')]) {
-                    sh '''
+                    sh '''#!/bin/bash
                         # Ensure we're using bash
-                        # Add SSH private key to Docker environment
                         export DOCKER_SSH_KEY=$SSH_PRIVATE_KEY
+                        
                         # Start the SSH agent using bash
                         eval "$(ssh-agent -s)"
                         ssh-add <(echo "$DOCKER_SSH_KEY")
+                        
                         # Docker build command
                         docker build -t static-website-nginx:develop-${BUILD_ID} .
                     '''
@@ -38,13 +39,14 @@ pipeline {
             steps {
                 // Stops and removes existing container, then runs a new one
                 withCredentials([sshUserPrivateKey(credentialsId: 'docker-server', keyFileVariable: 'SSH_PRIVATE_KEY')]) {
-                    sh '''
-                        # Ensure we're using bash
+                    sh '''#!/bin/bash
                         export DOCKER_SSH_KEY=$SSH_PRIVATE_KEY
                         eval "$(ssh-agent -s)"
                         ssh-add <(echo "$DOCKER_SSH_KEY")
+                        
                         # Stop and remove any existing container
                         docker stop develop-container || true && docker rm develop-container || true
+                        
                         # Run the container with the new image
                         docker run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}
                     '''
@@ -62,9 +64,10 @@ pipeline {
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                    sh '''
+                    sh '''#!/bin/bash
                         # Docker login for Docker Hub using username/password credentials
                         docker login -u $USERNAME -p $PASSWORD
+                        
                         # Tag and push Docker images to Docker Hub
                         docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest
                         docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}
