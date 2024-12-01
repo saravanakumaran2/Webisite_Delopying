@@ -31,7 +31,8 @@ pipeline {
                     sh '''
                     ssh ${REMOTE_SERVER} << 'EOF'
                     cd ${REMOTE_PATH}
-                    docker build -t ${DOCKER_IMAGE_NAME}:develop-${BUILD_NUMBER} .
+                    DOCKER_TAG="${DOCKER_IMAGE_NAME}:develop-${BUILD_NUMBER}"
+                    docker build -t ${DOCKER_TAG} .
                     EOF
                     '''
                 }
@@ -44,7 +45,8 @@ pipeline {
                     // Run the Docker container
                     sh '''
                     ssh ${REMOTE_SERVER} << 'EOF'
-                    docker run -d -p 80:80 --name website_container ${DOCKER_IMAGE_NAME}:develop-${BUILD_NUMBER}
+                    DOCKER_TAG="${DOCKER_IMAGE_NAME}:develop-${BUILD_NUMBER}"
+                    docker run -d -p 80:80 --name website_container ${DOCKER_TAG}
                     EOF
                     '''
                 }
@@ -70,7 +72,8 @@ pipeline {
                     // Push the Docker image to a Docker registry (e.g., Docker Hub)
                     sh '''
                     ssh ${REMOTE_SERVER} << 'EOF'
-                    docker push ${DOCKER_IMAGE_NAME}:develop-${BUILD_NUMBER}
+                    DOCKER_TAG="${DOCKER_IMAGE_NAME}:develop-${BUILD_NUMBER}"
+                    docker push ${DOCKER_TAG}
                     EOF
                     '''
                 }
