@@ -27,7 +27,7 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    ssh root@54.160.146.79 << 'EOF'
+                    ssh -o StrictHostKeyChecking=no root@54.160.146.79 << EOF
                     cd /opt/website_project
                     docker build -t static-website-nginx:develop-${BUILD_ID} .
                     EOF
@@ -40,8 +40,9 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    ssh root@54.160.146.79 << 'EOF'
-                    docker stop develop-container || true && docker rm develop-container || true
+                    ssh -o StrictHostKeyChecking=no root@54.160.146.79 << EOF
+                    docker stop develop-container || true
+                    docker rm develop-container || true
                     docker run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}
                     EOF
                     '''
@@ -53,7 +54,7 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    ssh root@54.160.146.79 << 'EOF'
+                    ssh -o StrictHostKeyChecking=no root@54.160.146.79 << EOF
                     curl -I http://54.160.146.79:8081
                     EOF
                     '''
@@ -66,7 +67,7 @@ pipeline {
                 sshagent(['docker-server']) {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                         sh '''
-                        ssh root@54.160.146.79 << 'EOF'
+                        ssh -o StrictHostKeyChecking=no root@54.160.146.79 << EOF
                         docker login -u $USERNAME -p $PASSWORD
                         docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest
                         docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}
