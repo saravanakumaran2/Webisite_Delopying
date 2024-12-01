@@ -13,7 +13,7 @@ pipeline {
     stages {
         stage('Checkout SCM') {
             steps {
-                git 'https://github.com/saravanakumaran2/Website_Delopying.git'
+                checkout scm
             }
         }
 
