@@ -21,10 +21,11 @@ pipeline {
                 // Builds the Docker image
                 withCredentials([sshUserPrivateKey(credentialsId: 'docker-server', keyFileVariable: 'SSH_PRIVATE_KEY')]) {
                     sh '''
+                        # Ensure we're using bash
                         # Add SSH private key to Docker environment
                         export DOCKER_SSH_KEY=$SSH_PRIVATE_KEY
-                        # Set up SSH agent to handle private key
-                        eval $(ssh-agent -s)
+                        # Start the SSH agent using bash
+                        eval "$(ssh-agent -s)"
                         ssh-add <(echo "$DOCKER_SSH_KEY")
                         # Docker build command
                         docker build -t static-website-nginx:develop-${BUILD_ID} .
@@ -38,9 +39,9 @@ pipeline {
                 // Stops and removes existing container, then runs a new one
                 withCredentials([sshUserPrivateKey(credentialsId: 'docker-server', keyFileVariable: 'SSH_PRIVATE_KEY')]) {
                     sh '''
-                        # Use the SSH private key for authentication
+                        # Ensure we're using bash
                         export DOCKER_SSH_KEY=$SSH_PRIVATE_KEY
-                        eval $(ssh-agent -s)
+                        eval "$(ssh-agent -s)"
                         ssh-add <(echo "$DOCKER_SSH_KEY")
                         # Stop and remove any existing container
                         docker stop develop-container || true && docker rm develop-container || true
