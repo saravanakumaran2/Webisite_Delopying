@@ -1,5 +1,8 @@
 pipeline {
-    agent any
+    agent any  // Runs on any available agent (node)
+    environment {
+        DOCKER_SERVER_CREDENTIALS = 'docker-server'  // Credentials ID for Docker server
+    }
     stages {
         stage('Cleanup') {
             steps {
@@ -14,17 +17,13 @@ pipeline {
         }
 
         stage('Build Image') {
-            agent {
-                // Ensure that the Docker commands run on the Docker server node
-                node {
-                    label 'docker-server'  // Make sure this matches the node/agent label where Docker is configured
-                }
-            }
             steps {
-                // Build the Docker image on the Docker server
+                // Builds the Docker image
                 withCredentials([usernamePassword(credentialsId: 'docker-server', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
+                        # Docker login using the Jenkins credentials
                         docker login -u $DOCKER_USER -p $DOCKER_PASS
+                        # Build the Docker image
                         docker build -t static-website-nginx:develop-${BUILD_ID} .
                     '''
                 }
@@ -32,14 +31,8 @@ pipeline {
         }
 
         stage('Run Container') {
-            agent {
-                // Ensure that the Docker commands run on the Docker server node
-                node {
-                    label 'docker-server'  // Ensure Docker server node is used here
-                }
-            }
             steps {
-                // Stops and removes existing container, then runs a new one on Docker server
+                // Stops and removes existing container, then runs a new one
                 withCredentials([usernamePassword(credentialsId: 'docker-server', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
                         docker login -u $DOCKER_USER -p $DOCKER_PASS
@@ -52,8 +45,8 @@ pipeline {
 
         stage('Test Website') {
             steps {
-                // Tests if the website is accessible
-                sh 'curl -I http://54.85.223.42:8081'
+                // Tests if the website is accessible using the new IP
+                sh 'curl -I http://54.160.146.79:8081'
             }
         }
 
