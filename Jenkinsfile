@@ -13,11 +13,22 @@ pipeline {
             }
         }
 
+        stage('Copy Files to Remote Server') {
+            steps {
+                sshagent(['docker-server']) {
+                    sh '''
+                    scp -r * root@54.160.146.79:/opt/website_project/
+                    '''
+                }
+            }
+        }
+
         stage('Build Image') {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
                     ssh root@54.160.146.79 << 'EOF'
+                    cd /opt/website_project
                     docker build -t static-website-nginx:develop-${BUILD_ID} .
                     EOF
                     '''
