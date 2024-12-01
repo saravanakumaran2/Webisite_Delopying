@@ -14,16 +14,16 @@ pipeline {
         }
 
         stage('Build Image') {
-            sshagent(['docker-server']) {
-                steps {
+            steps {
+                sshagent(['docker-server']) {
                     sh 'docker build -t static-website-nginx:develop-${BUILD_ID} .'
                 }
             }
         }
 
         stage('Run Container') {
-            sshagent(['docker-server']) {
-                steps {
+            steps {
+                sshagent(['docker-server']) {
                     sh 'docker stop develop-container || true && docker rm develop-container || true'
                     sh 'docker run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}'
                 }
@@ -31,17 +31,16 @@ pipeline {
         }
 
         stage('Test Website') {
-            sshagent(['docker-server']) {
-                steps {
+            steps {
+                sshagent(['docker-server']) {
                     sh 'curl -I http://54.160.146.79:8081'
                 }
             }
         }
-        
-        
+
         stage('Push Image') {
-            sshagent(['docker-server']) {
-                steps {
+            steps {
+                sshagent(['docker-server']) {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                         sh '''
                         docker login -u $USERNAME -p $PASSWORD
