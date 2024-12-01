@@ -1,5 +1,8 @@
 pipeline {
     agent any
+    environment {
+        remoteHost = '54.160.146.79'  // Define the remote host variable for easy updates
+    }
     stages {
         stage('Cleanup') {
             steps {
@@ -17,7 +20,7 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    scp -r * root@54.160.146.79:/opt/website_project/
+                    scp -r * root@$remoteHost:/opt/website_project/
                     '''
                 }
             }
@@ -27,9 +30,9 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    ssh root@54.160.146.79 << 'EOF'
+                    ssh root@$remoteHost << 'EOF'
                     cd /opt/website_project
-                    docker build -t static-website-nginx:develop-${BUILD_ID} .
+                    docker buildx build -t static-website-nginx:develop-${BUILD_ID} .
                     EOF
                     '''
                 }
@@ -40,7 +43,7 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    ssh root@54.160.146.79 << 'EOF'
+                    ssh root@$remoteHost << 'EOF'
                     docker stop develop-container || true && docker rm develop-container || true
                     docker run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}
                     EOF
@@ -53,8 +56,8 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    ssh root@54.160.146.79 << 'EOF'
-                    curl -I http://54.160.146.79:8081
+                    ssh root@$remoteHost << 'EOF'
+                    curl -I http://$remoteHost:8081
                     EOF
                     '''
                 }
@@ -66,7 +69,7 @@ pipeline {
                 sshagent(['docker-server']) {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                         sh '''
-                        ssh root@54.160.146.79 << 'EOF'
+                        ssh root@$remoteHost << 'EOF'
                         docker login -u $USERNAME -p $PASSWORD
                         docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest
                         docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}
