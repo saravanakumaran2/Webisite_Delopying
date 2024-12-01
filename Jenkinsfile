@@ -1,91 +1,74 @@
 pipeline {
     agent any
-
-    environment {
-        DOCKER_IMAGE_NAME = 'website_image'
-        DOCKER_REGISTRY = 'dockerhub'  // Name of the Docker registry (Docker Hub)
-        REMOTE_SERVER = 'root@54.160.146.79'
-        REMOTE_PATH = '/opt/website_project/'
-        SSH_KEY = credentials('docker-server')  // SSH private key credential for accessing the Docker server
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-auth')  // DockerHub credentials (username and password)
-    }
-
     stages {
-        stage('Checkout SCM') {
+        stage('Cleanup') {
             steps {
-                checkout scm
+                cleanWs() // Cleans the workspace
             }
         }
 
-        stage('Copy Files to Remote Server') {
+        stage('Checkout Code') {
             steps {
-                sshagent([SSH_KEY]) {
-                    sh """
-                        scp -r Dockerfile Jenkinsfile README.md assets error images index.html ${REMOTE_SERVER}:${REMOTE_PATH}
-                    """
+                checkout scm // Checks out the code from the repository
+            }
+        }
+
+        stage('Build Image') {
+            agent {
+                // Ensure that the Docker commands run on the Docker server node
+                node {
+                    label 'docker-server'  // Make sure this matches the node/agent label where Docker is configured
                 }
             }
-        }
-
-        stage('Build Docker Image') {
             steps {
-                sshagent([SSH_KEY]) {
-                    sh """
-                        ssh ${REMOTE_SERVER} '
-                            cd ${REMOTE_PATH} && 
-                            docker build -t ${DOCKER_IMAGE_NAME}:${GIT_COMMIT} .'
-                    """
+                // Build the Docker image on the Docker server
+                withCredentials([usernamePassword(credentialsId: 'docker-server', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        docker login -u $DOCKER_USER -p $DOCKER_PASS
+                        docker build -t static-website-nginx:develop-${BUILD_ID} .
+                    '''
                 }
             }
         }
 
         stage('Run Container') {
+            agent {
+                // Ensure that the Docker commands run on the Docker server node
+                node {
+                    label 'docker-server'  // Ensure Docker server node is used here
+                }
+            }
             steps {
-                sshagent([SSH_KEY]) {
-                    sh """
-                        ssh ${REMOTE_SERVER} '
-                            docker run -d -p 80:80 ${DOCKER_IMAGE_NAME}:${GIT_COMMIT}'
-                    """
+                // Stops and removes existing container, then runs a new one on Docker server
+                withCredentials([usernamePassword(credentialsId: 'docker-server', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        docker login -u $DOCKER_USER -p $DOCKER_PASS
+                        docker stop develop-container || true && docker rm develop-container || true
+                        docker run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}
+                    '''
                 }
             }
         }
 
         stage('Test Website') {
             steps {
-                script {
-                    // You can add logic to test your website here, e.g., using curl to check if the site is up
-                    def result = sh(script: 'curl -s -o /dev/null -w "%{http_code}" http://localhost', returnStdout: true).trim()
-                    if (result != '200') {
-                        error "Website test failed with status code: ${result}"
-                    }
-                }
+                // Tests if the website is accessible
+                sh 'curl -I http://54.85.223.42:8081'
             }
         }
 
-        stage('Push Image to DockerHub') {
+        stage('Push Image') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                        sh """
-                            docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
-                            docker tag ${DOCKER_IMAGE_NAME}:${GIT_COMMIT} ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${GIT_COMMIT}
-                            docker push ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${GIT_COMMIT}
-                        """
-                    }
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                    sh '''
+                        docker login -u $USERNAME -p $PASSWORD
+                        docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest
+                        docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}
+                        docker push $USERNAME/static-website-nginx:latest
+                        docker push $USERNAME/static-website-nginx:develop-${BUILD_ID}
+                    '''
                 }
             }
-        }
-    }
-
-    post {
-        always {
-            cleanWs()  // Clean up workspace after the pipeline finishes
-        }
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed.'
         }
     }
 }
