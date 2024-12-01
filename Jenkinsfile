@@ -1,7 +1,9 @@
 pipeline {
     agent any
     environment {
-        remoteHost = '54.160.146.79'  // Define the remote host variable for easy updates
+        DOCKER_IMAGE_NAME = "static-website-nginx"
+        REMOTE_SERVER = "root@54.160.146.79"
+        REMOTE_PATH = "/opt/website_project/"
     }
     stages {
         stage('Cleanup') {
@@ -20,7 +22,7 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    scp -r * root@$remoteHost:/opt/website_project/
+                    scp -r * ${REMOTE_SERVER}:${REMOTE_PATH}
                     '''
                 }
             }
@@ -30,9 +32,9 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    ssh root@$remoteHost << 'EOF'
-                    cd /opt/website_project
-                    docker buildx build -t static-website-nginx:develop-${BUILD_ID} .
+                    ssh ${REMOTE_SERVER} << 'EOF'
+                    cd ${REMOTE_PATH}
+                    docker build -t ${DOCKER_IMAGE_NAME}:develop-${BUILD_ID} .
                     EOF
                     '''
                 }
@@ -43,9 +45,10 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    ssh root@$remoteHost << 'EOF'
-                    docker stop develop-container || true && docker rm develop-container || true
-                    docker run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}
+                    ssh ${REMOTE_SERVER} << 'EOF'
+                    docker stop develop-container || true
+                    docker rm develop-container || true
+                    docker run --name develop-container -d -p 8081:80 ${DOCKER_IMAGE_NAME}:develop-${BUILD_ID}
                     EOF
                     '''
                 }
@@ -56,8 +59,8 @@ pipeline {
             steps {
                 sshagent(['docker-server']) {
                     sh '''
-                    ssh root@$remoteHost << 'EOF'
-                    curl -I http://$remoteHost:8081
+                    ssh ${REMOTE_SERVER} << 'EOF'
+                    curl -I http://54.160.146.79:8081
                     EOF
                     '''
                 }
@@ -69,12 +72,12 @@ pipeline {
                 sshagent(['docker-server']) {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                         sh '''
-                        ssh root@$remoteHost << 'EOF'
+                        ssh ${REMOTE_SERVER} << 'EOF'
                         docker login -u $USERNAME -p $PASSWORD
-                        docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest
-                        docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}
-                        docker push $USERNAME/static-website-nginx:latest
-                        docker push $USERNAME/static-website-nginx:develop-${BUILD_ID}
+                        docker tag ${DOCKER_IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${DOCKER_IMAGE_NAME}:latest
+                        docker tag ${DOCKER_IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${DOCKER_IMAGE_NAME}:develop-${BUILD_ID}
+                        docker push $USERNAME/${DOCKER_IMAGE_NAME}:latest
+                        docker push $USERNAME/${DOCKER_IMAGE_NAME}:develop-${BUILD_ID}
                         EOF
                         '''
                     }
