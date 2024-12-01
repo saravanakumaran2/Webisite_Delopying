@@ -1,28 +1,24 @@
 pipeline {
     agent any
     environment {
-        DOCKER_IMAGE_NAME = "static-website-nginx"
-        REMOTE_SERVER = "root@54.160.146.79"
-        REMOTE_PATH = "/opt/website_project/"
+        REMOTE_SERVER = 'root@54.160.146.79'  // Remote server details
+        REMOTE_PATH = '/opt/website_project'  // Directory on the server
+        DOCKER_IMAGE_NAME = 'website_project'  // Docker image name
     }
     stages {
-        stage('Cleanup') {
+        stage('Checkout SCM') {
             steps {
-                cleanWs() // Cleans the workspace
-            }
-        }
-
-        stage('Checkout Code') {
-            steps {
-                checkout scm // Checks out the code from the repository
+                // Checkout code from Git repository
+                checkout scm
             }
         }
 
         stage('Copy Files to Remote Server') {
             steps {
+                // Use SSH agent to copy files to remote server
                 sshagent(['docker-server']) {
                     sh '''
-                    scp -r * ${REMOTE_SERVER}:${REMOTE_PATH}
+                    scp -r Dockerfile Jenkinsfile README.md assets error images index.html ${REMOTE_SERVER}:${REMOTE_PATH}/
                     '''
                 }
             }
@@ -31,10 +27,11 @@ pipeline {
         stage('Build Image') {
             steps {
                 sshagent(['docker-server']) {
+                    // Build the Docker image on the remote server
                     sh '''
                     ssh ${REMOTE_SERVER} << 'EOF'
                     cd ${REMOTE_PATH}
-                    docker build -t ${DOCKER_IMAGE_NAME}:develop-${BUILD_ID} .
+                    docker build -t ${DOCKER_IMAGE_NAME}:develop-${BUILD_NUMBER} .
                     EOF
                     '''
                 }
@@ -44,11 +41,10 @@ pipeline {
         stage('Run Container') {
             steps {
                 sshagent(['docker-server']) {
+                    // Run the Docker container
                     sh '''
                     ssh ${REMOTE_SERVER} << 'EOF'
-                    docker stop develop-container || true
-                    docker rm develop-container || true
-                    docker run --name develop-container -d -p 8081:80 ${DOCKER_IMAGE_NAME}:develop-${BUILD_ID}
+                    docker run -d -p 80:80 --name website_container ${DOCKER_IMAGE_NAME}:develop-${BUILD_NUMBER}
                     EOF
                     '''
                 }
@@ -57,10 +53,11 @@ pipeline {
 
         stage('Test Website') {
             steps {
+                // Test the website to ensure it's running
                 sshagent(['docker-server']) {
                     sh '''
                     ssh ${REMOTE_SERVER} << 'EOF'
-                    curl -I http://54.160.146.79:8081
+                    curl -s http://localhost | grep "Welcome"
                     EOF
                     '''
                 }
@@ -70,19 +67,20 @@ pipeline {
         stage('Push Image') {
             steps {
                 sshagent(['docker-server']) {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                        sh '''
-                        ssh ${REMOTE_SERVER} << 'EOF'
-                        docker login -u $USERNAME -p $PASSWORD
-                        docker tag ${DOCKER_IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${DOCKER_IMAGE_NAME}:latest
-                        docker tag ${DOCKER_IMAGE_NAME}:develop-${BUILD_ID} $USERNAME/${DOCKER_IMAGE_NAME}:develop-${BUILD_ID}
-                        docker push $USERNAME/${DOCKER_IMAGE_NAME}:latest
-                        docker push $USERNAME/${DOCKER_IMAGE_NAME}:develop-${BUILD_ID}
-                        EOF
-                        '''
-                    }
+                    // Push the Docker image to a Docker registry (e.g., Docker Hub)
+                    sh '''
+                    ssh ${REMOTE_SERVER} << 'EOF'
+                    docker push ${DOCKER_IMAGE_NAME}:develop-${BUILD_NUMBER}
+                    EOF
+                    '''
                 }
             }
+        }
+    }
+    post {
+        failure {
+            // Clean up the workspace if the build fails
+            cleanWs()
         }
     }
 }
