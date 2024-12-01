@@ -28,6 +28,9 @@ pipeline {
                         eval "$(ssh-agent -s)"
                         ssh-add <(echo "$DOCKER_SSH_KEY")
                         
+                        # Verify Docker is available
+                        which docker || { echo "Docker not found!"; exit 1; }
+
                         # Docker build command
                         docker build -t static-website-nginx:develop-${BUILD_ID} .
                     '''
@@ -43,6 +46,9 @@ pipeline {
                         export DOCKER_SSH_KEY=$SSH_PRIVATE_KEY
                         eval "$(ssh-agent -s)"
                         ssh-add <(echo "$DOCKER_SSH_KEY")
+                        
+                        # Verify Docker is available
+                        which docker || { echo "Docker not found!"; exit 1; }
                         
                         # Stop and remove any existing container
                         docker stop develop-container || true && docker rm develop-container || true
