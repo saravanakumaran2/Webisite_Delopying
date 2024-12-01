@@ -1,10 +1,5 @@
 pipeline {
     agent any
-    environment {
-        SERVER_IP = '54.160.146.79'
-        SSH_CREDENTIALS_ID = 'docker-server'
-        DOCKERHUB_CREDENTIALS_ID = 'dockerhub-auth'
-    }
     stages {
         stage('Cleanup') {
             steps {
@@ -20,66 +15,55 @@ pipeline {
 
         stage('Copy Files to Remote Server') {
             steps {
-                sshagent([SSH_CREDENTIALS_ID]) {
-                    sh """
-                    scp -r Dockerfile Jenkinsfile README.md assets error images index.html root@${SERVER_IP}:/opt/website_project/
-                    """
+                sshagent(['docker-server']) {
+                    sh '''
+                    scp -r Dockerfile Jenkinsfile README.md assets error images index.html root@54.160.146.79:/opt/website_project/
+                    '''
                 }
             }
         }
 
         stage('Build Image') {
             steps {
-                sshagent([SSH_CREDENTIALS_ID]) {
-                    sh """
-                    ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
-                    cd /opt/website_project
-                    docker build -t static-website-nginx:develop-${BUILD_ID} .
-                    EOF
-                    """
+                sshagent(['docker-server']) {
+                    sh '''
+                    ssh root@54.160.146.79 "cd /opt/website_project && docker build -t static-website-nginx:develop-${BUILD_ID} ."
+                    '''
                 }
             }
         }
 
         stage('Run Container') {
             steps {
-                sshagent([SSH_CREDENTIALS_ID]) {
-                    sh """
-                    ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
-                    docker stop develop-container || true
-                    docker rm develop-container || true
-                    docker run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}
-                    EOF
-                    """
+                sshagent(['docker-server']) {
+                    sh '''
+                    ssh root@54.160.146.79 "docker stop develop-container || true && docker rm develop-container || true && docker run --name develop-container -d -p 8081:80 static-website-nginx:develop-${BUILD_ID}"
+                    '''
                 }
             }
         }
 
         stage('Test Website') {
             steps {
-                sshagent([SSH_CREDENTIALS_ID]) {
-                    sh """
-                    ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
-                    curl -I http://${SERVER_IP}:8081
-                    EOF
-                    """
+                sshagent(['docker-server']) {
+                    sh '''
+                    ssh root@54.160.146.79 "curl -I http://54.160.146.79:8081"
+                    '''
                 }
             }
         }
 
         stage('Push Image') {
             steps {
-                sshagent([SSH_CREDENTIALS_ID]) {
-                    withCredentials([usernamePassword(credentialsId: DOCKERHUB_CREDENTIALS_ID, usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                        sh """
-                        ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
-                        echo $PASSWORD | docker login -u $USERNAME --password-stdin
-                        docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest
-                        docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}
-                        docker push $USERNAME/static-website-nginx:latest
-                        docker push $USERNAME/static-website-nginx:develop-${BUILD_ID}
-                        EOF
-                        """
+                sshagent(['docker-server']) {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-auth', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                        sh '''
+                        ssh root@54.160.146.79 "docker login -u $USERNAME -p $PASSWORD"
+                        ssh root@54.160.146.79 "docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:latest"
+                        ssh root@54.160.146.79 "docker tag static-website-nginx:develop-${BUILD_ID} $USERNAME/static-website-nginx:develop-${BUILD_ID}"
+                        ssh root@54.160.146.79 "docker push $USERNAME/static-website-nginx:latest"
+                        ssh root@54.160.146.79 "docker push $USERNAME/static-website-nginx:develop-${BUILD_ID}"
+                        '''
                     }
                 }
             }
