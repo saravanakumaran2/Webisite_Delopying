@@ -5,7 +5,7 @@ pipeline {
             steps {
                 // Pulls the latest image from Docker Hub on the remote server
                 sshagent(['docker-server']) {
-                    sh 'ssh root@54.227.105.102 "docker pull saravana227/static-website-nginx:latest"'
+                    sh 'ssh root@44.204.87.238 "docker pull saravana227/static-website-nginx:latest"'
                 }
             }
         }
@@ -15,9 +15,9 @@ pipeline {
                 // Stops and removes any existing container, then runs a new one on the remote server
                 sshagent(['docker-server']) {
                     sh '''
-                        ssh root@54.227.105.102 "docker stop main-container || true"
-                        ssh root@54.227.105.102 "docker rm main-container || true"
-                        ssh root@54.227.105.102 "docker run --name main-container -d -p 8082:80 saravana227/static-website-nginx:latest"
+                        ssh root@44.204.87.238 "docker stop main-container || true"
+                        ssh root@44.204.87.238 "docker rm main-container || true"
+                        ssh root@44.204.87.238 "docker run --name main-container -d -p 8082:80 saravana227/static-website-nginx:latest"
                     '''
                 }
             }
@@ -26,7 +26,7 @@ pipeline {
         stage('Test Website') {
             steps {
                 // Tests if the website is accessible on the new container on the remote server
-                sh 'curl -I http://54.227.105.102:8082 || exit 1'
+                sh 'curl -I http://44.204.87.238:8082 || exit 1'
             }
         }
     }
